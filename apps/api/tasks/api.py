@@ -2,17 +2,27 @@ import django_rq
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import Router
 
-from .jobs import  send_task_completed_email
+from .jobs import  send_task_completed_email,send_deadline_email
 from. models import Task
-from .schemas import TaskOut, taskIn, Taskupdate
+from .schemas import TaskOut, TaskIn, TaskUpdate
 
 router = Router(tags=["Tasks"])
 
-@router.post("",response={201:TaskOut})
-def create_task(request, payload: taskIn):
-    task = Task.objects.create(**payload.dict())
+@router.post("", response={201: TaskOut})
+def create_task(request, payload: TaskIn):
+    with transaction.atomic():
+        task = Task.objects.create(**payload.dict())
+
+        
+        if task.remind_at <= timezone.now():
+            task.notification_sent = True
+            task.save(update_fields=["notification_sent"])
+            transaction.on_commit(
+                lambda: django_rq.enqueue(send_deadline_email, task.id)
+            )
     return 201, task
 
 @router.get("",response=list[TaskOut])
@@ -25,11 +35,12 @@ def get_task(request, task_id: int):
     task = get_object_or_404(Task, id=task_id)
     return task 
 
-@router.patch("/{task_id}",response=TaskOut)
-def update_task(request, task_id: int, payload: Taskupdate):
+@router.patch("/{task_id}", response=TaskOut)
+def update_task(request, task_id: int, payload: TaskUpdate):
     task = get_object_or_404(Task, id=task_id)
-    changes=payload.dict(exclude_unset=True)
-    if "deadline" in changes:
+    changes = payload.dict(exclude_unset=True)
+    if "deadline" in changes or "remind_before_minutes" in changes:
+        # a new schedule means the reminder may fire again
         task.notification_sent = False
     for field, value in changes.items():
         setattr(task, field, value)
