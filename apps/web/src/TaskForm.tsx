@@ -1,19 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { MAX_REMINDER, MIN_REMINDER, ReminderPicker } from "./ReminderPicker";
-import type { TaskInput } from "./types";
+import type { Task, TaskInput } from "./types";
 import { formatMinutes, minutesUntil, toLocalInputValue } from "./utils";
 
 interface Props {
+  task?: Task | null;
   onClose: () => void;
-  onCreate: (input: TaskInput) => Promise<void>;
+  onSubmit: (input: TaskInput) => Promise<void>;
 }
 
-export function TaskForm({ onClose, onCreate }: Props) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [email, setEmail] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [remindBefore, setRemindBefore] = useState(1440);
+export function TaskForm({ task, onClose, onSubmit }: Props) {
+  const editing = Boolean(task);
+
+  const [title, setTitle] = useState(task?.title ?? "");
+  const [description, setDescription] = useState(task?.description ?? "");
+  const [email, setEmail] = useState(task?.assignee_email ?? "");
+  const [deadline, setDeadline] = useState(task ? toLocalInputValue(new Date(task.deadline)) : "");
+  const [remindBefore, setRemindBefore] = useState(task?.remind_before_minutes ?? 1440);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,6 +29,11 @@ export function TaskForm({ onClose, onCreate }: Props) {
   const untilDeadline = deadline ? minutesUntil(deadline) : null;
   const windowTooLong =
     untilDeadline !== null && untilDeadline > 0 && remindBefore > untilDeadline;
+  const scheduleChanged =
+    !task ||
+    remindBefore !== task.remind_before_minutes ||
+    Math.floor(new Date(deadline).getTime() / 60000) !==
+      Math.floor(new Date(task.deadline).getTime() / 60000);
   const reminderInvalid =
     !Number.isFinite(remindBefore) || remindBefore < MIN_REMINDER || remindBefore > MAX_REMINDER;
 
@@ -34,7 +42,7 @@ export function TaskForm({ onClose, onCreate }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await onCreate({
+      await onSubmit({
         title,
         description,
         assignee_email: email,
@@ -60,8 +68,12 @@ export function TaskForm({ onClose, onCreate }: Props) {
       >
         <header className="drawer-head">
           <div>
-            <h2 id="drawer-title">New task</h2>
-            <p className="muted">Assign work and choose when the assignee is reminded.</p>
+            <h2 id="drawer-title">{editing ? "Edit task" : "New task"}</h2>
+            <p className="muted">
+              {editing
+                ? "Update the details. Changing the deadline or reminder reschedules the email."
+                : "Assign work and choose when the assignee is reminded."}
+            </p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             &times;
@@ -90,7 +102,7 @@ export function TaskForm({ onClose, onCreate }: Props) {
               <input
                 type="datetime-local"
                 value={deadline}
-                min={toLocalInputValue(new Date())}
+                min={editing ? undefined : toLocalInputValue(new Date())}
                 onChange={(e) => setDeadline(e.target.value)}
                 required
               />
@@ -101,11 +113,11 @@ export function TaskForm({ onClose, onCreate }: Props) {
               <ReminderPicker value={remindBefore} onChange={setRemindBefore} />
             </div>
 
-            {windowTooLong && untilDeadline !== null && (
+            {windowTooLong && scheduleChanged && untilDeadline !== null && (
               <div className="notice">
                 The deadline is only {formatMinutes(untilDeadline)} away, which is shorter than the{" "}
                 {formatMinutes(remindBefore)} reminder window. The reminder email will be sent
-                immediately after the task is created.
+                immediately after you {editing ? "save" : "create the task"}.
               </div>
             )}
 
@@ -117,7 +129,7 @@ export function TaskForm({ onClose, onCreate }: Props) {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={submitting || reminderInvalid}>
-              {submitting ? "Creating..." : "Create task"}
+              {submitting ? "Saving..." : editing ? "Save changes" : "Create task"}
             </button>
           </footer>
         </form>

@@ -1,11 +1,20 @@
 from datetime import date, datetime
+from datetime import timezone as dt_timezone
 
 from django.utils import timezone
 from ninja import Schema
 from pydantic import EmailStr, Field, field_validator
 
 MIN_REMINDER_MINUTES = 5
-MAX_REMINDER_MINUTES = 10080 
+MAX_REMINDER_MINUTES = 10080
+
+
+def _require_future(value: datetime) -> datetime:
+    if timezone.is_naive(value):
+        value = timezone.make_aware(value, dt_timezone.utc)
+    if value <= timezone.now():
+        raise ValueError("Deadline must be in the future")
+    return value
 
 
 class TaskIn(Schema):
@@ -20,11 +29,7 @@ class TaskIn(Schema):
     @field_validator("deadline")
     @classmethod
     def deadline_must_be_future(cls, value: datetime) -> datetime:
-        if timezone.is_naive(value):
-            value = timezone.make_aware(value, timezone.utc)
-        if value <= timezone.now():
-            raise ValueError("Deadline must be in the future")
-        return value
+        return _require_future(value)
 
 
 class TaskUpdate(Schema):
@@ -36,10 +41,14 @@ class TaskUpdate(Schema):
         default=None, ge=MIN_REMINDER_MINUTES, le=MAX_REMINDER_MINUTES
     )
 
+    @field_validator("deadline")
+    @classmethod
+    def deadline_must_be_future(cls, value: datetime | None) -> datetime | None:
+        return None if value is None else _require_future(value)
 
 class TaskOut(Schema):
     id: int
-    title: str
+    title: str 
     description: str
     assignee_email: str
     deadline: datetime

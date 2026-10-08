@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { StatCards } from "./StatCards";
 import { TaskForm } from "./TaskForm";
 import { TaskTable } from "./TaskTable";
 import type { Task, TaskInput } from "./types";
-import { displayStatus } from "./utils";
+import { buildPatch, displayStatus } from "./utils";
 import "./index.css";
 
 type Filter = "all" | "open" | "due-soon" | "overdue" | "completed";
@@ -30,7 +31,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState<Task | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
@@ -47,13 +51,31 @@ export default function App() {
 
   useEffect(() => {
     void load();
-    const id = setInterval(() => void load(), 30_000); // keep statuses and reminder flags fresh
+    const id = setInterval(() => void load(), 30_000);
     return () => clearInterval(id);
   }, [load]);
 
-  async function handleCreate(input: TaskInput) {
-    await api.createTask(input); // errors bubble up to the form
-    await load();
+  const openCreate = () => {
+    setEditing(null);
+    setShowForm(true);
+  };
+  const openEdit = (task: Task) => {
+    setEditing(task);
+    setShowForm(true);
+  };
+  const closeForm = useCallback(() => {
+    setShowForm(false);
+    setEditing(null);
+  }, []);
+
+  async function handleSubmit(values: TaskInput) {
+    if (editing) {
+      const patch = buildPatch(editing, values);
+      if (Object.keys(patch).length > 0) await api.updateTask(editing.id, patch);
+    } else {
+      await api.createTask(values);
+    }
+    await load(); // errors bubble up to the form
   }
 
   async function handleComplete(id: number) {
@@ -62,6 +84,20 @@ export default function App() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not complete task");
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteTask(deleting.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete task");
+    } finally {
+      setDeleteBusy(false);
+      setDeleting(null);
     }
   }
 
@@ -106,7 +142,7 @@ export default function App() {
             <h1>Tasks</h1>
             <p className="muted">Track assignments, deadlines and reminder status in one place.</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setDrawerOpen(true)}>
+          <button className="btn btn-primary" onClick={openCreate}>
             + New task
           </button>
         </div>
@@ -141,12 +177,35 @@ export default function App() {
           {loading ? (
             <div className="empty">Loading tasks...</div>
           ) : (
-            <TaskTable tasks={visible} onComplete={handleComplete} />
+            <TaskTable
+              tasks={visible}
+              onComplete={handleComplete}
+              onEdit={openEdit}
+              onDelete={setDeleting}
+            />
           )}
         </section>
       </main>
 
-      {drawerOpen && <TaskForm onClose={() => setDrawerOpen(false)} onCreate={handleCreate} />}
+      {showForm && (
+        <TaskForm
+          key={editing?.id ?? "new"}
+          task={editing}
+          onClose={closeForm}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title="Delete this task?"
+          message={`"${deleting.title}" will be permanently removed, and its reminder will not be sent.`}
+          confirmLabel="Delete task"
+          busy={deleteBusy}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 }
