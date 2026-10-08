@@ -1,4 +1,9 @@
 import logging
+import django_rq
+
+from datetime import timedelta
+from django.utils import timezone
+from django.db import transaction
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -46,3 +51,26 @@ def send_deadline_email(task_id: int)-> None:
         ),
     )
     logger.info("Sent deadline email for task %s", task_id)
+
+
+def check_approaching_deadlines()->int:
+    """Runs on a schedule. Enqueues one email per qualifying tasks, once"""
+    now=timezone.now()
+    window_end=now + timedelta(hours=24)
+
+    with transaction.atomic():
+        tasks=list(
+            Task.objects.select_for_update(skip_locked=True)
+            .filter(
+                notification_sent=False,
+                deadline__gt=now,
+                deadline__lte=window_end,
+            )
+            .exclude(status=Task.Status.COMPLETED)
+        )
+        for task in tasks:
+            django_rq.enqueue(send_deadline_email, task.id)
+            task.notification_sent=True
+            task.save(update_fields=["notification_sent"])
+    logger.info("Enqueued %s deadline emails", len(tasks))
+    return len(tasks)
