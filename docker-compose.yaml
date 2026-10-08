@@ -53,6 +53,11 @@ services:
       retries: 10
       start_period: 15s
 
+  rqworker:
+    <<: *api
+    command: >
+      sh -c "python manage.py rqworker default"
+
 volumes:
   pgdata:
   redisdata:

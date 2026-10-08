@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'tasks',
+    'django_rq',
 ]
 
 MIDDLEWARE = [
@@ -125,13 +126,27 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
-
+# MAILERS = {
+#     'default': {
+#         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+#     },
+# }
 
 CORS_ALLOWED_ORIGINS=[
     o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o  
 ]
+
+# ---- Redis Queue ----
+REDIS_URL = os.environ.get("REDIS_URL")
+RQ_QUEUES = {
+    "default": {"URL": REDIS_URL, "DEFAULT_TIMEOUT": 360},
+}
+
+# ---- Email (Gmail SMTP) ----
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND")
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
