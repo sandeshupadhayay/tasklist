@@ -1,0 +1,16 @@
+[project]
+name = "api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "dj-database-url>=3.1.2",
+    "django>=6.1.2",
+    "django-cors-headers>=4.9.0",
+    "django-ninja>=1.7.1",
+    "django-rq>=4.2.0",
+    "gunicorn>=26.2.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic[email]>=2.13.5",
+    "redis>=8.1.0",
+    "rq-scheduler>=0.14.0",
+]
