@@ -20,3 +20,5 @@ export interface TaskInput {
   deadline: string;
   remind_before_minutes: number;
 }
+
+export type TaskPatch = Partial<TaskInput>;

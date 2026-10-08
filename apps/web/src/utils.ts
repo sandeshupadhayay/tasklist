@@ -1,4 +1,4 @@
-import type { Task } from "./types";
+import type { Task, TaskInput, TaskPatch } from "./types";
 
 export type DisplayStatus = "completed" | "overdue" | "due-soon" | "pending";
 
@@ -51,4 +51,20 @@ export function toLocalInputValue(date: Date): string {
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
     `T${pad(date.getHours())}:${pad(date.getMinutes())}`
   );
+}
+
+const toMinute = (iso: string) => Math.floor(new Date(iso).getTime() / 60000);
+
+/** Only the fields that changed, so untouched fields are never re-validated by the API. */
+export function buildPatch(task: Task, values: TaskInput): TaskPatch {
+  const patch: TaskPatch = {};
+  if (values.title !== task.title) patch.title = values.title;
+  if (values.description !== task.description) patch.description = values.description;
+  if (values.assignee_email !== task.assignee_email) patch.assignee_email = values.assignee_email;
+  // datetime-local drops seconds, so compare at minute precision
+  if (toMinute(values.deadline) !== toMinute(task.deadline)) patch.deadline = values.deadline;
+  if (values.remind_before_minutes !== task.remind_before_minutes) {
+    patch.remind_before_minutes = values.remind_before_minutes;
+  }
+  return patch;
 }

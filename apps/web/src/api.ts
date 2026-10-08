@@ -1,15 +1,16 @@
-import type {Task, TaskInput} from './types';
+import type { Task, TaskInput, TaskPatch } from "./types";
 
-const BASE= import.meta.env.VITE_API_URL?? "/api";
+const BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-function formatError(detail:unknown, status:number):string{
-    if (Array.isArray(detail)){
-        return detail.map((d)=>(typeof d === "object" && d && "msg" in d? String(d.msg) : String(d))).join(", ");
-    }
-    if (typeof detail ==="string") return detail;
-    return `request failed (${status})`; 
+function formatError(detail: unknown, status: number): string {
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => (typeof d === "object" && d && "msg" in d ? String(d.msg) : String(d)))
+      .join("; ");
+  }
+  if (typeof detail === "string") return detail;
+  return `Request failed (${status})`;
 }
-
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -20,14 +21,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => null);
     throw new Error(formatError(body?.detail, res.status));
   }
+  if (res.status === 204) return undefined as T; 
   return res.json() as Promise<T>;
 }
-
 
 export const api = {
   listTasks: () => request<Task[]>("/tasks"),
   createTask: (input: TaskInput) =>
     request<Task>("/tasks", { method: "POST", body: JSON.stringify(input) }),
+  updateTask: (id: number, patch: TaskPatch) =>
+    request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteTask: (id: number) => request<void>(`/tasks/${id}`, { method: "DELETE" }),
   completeTask: (id: number) =>
     request<Task>(`/tasks/${id}/complete`, { method: "PATCH" }),
 };

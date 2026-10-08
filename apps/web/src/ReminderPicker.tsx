@@ -20,10 +20,18 @@ interface Props {
   onChange: (minutes: number) => void;
 }
 
+function splitMinutes(total: number): { amount: string; unit: Unit } {
+  if (total % 1440 === 0) return { amount: String(total / 1440), unit: "days" };
+  if (total % 60 === 0) return { amount: String(total / 60), unit: "hours" };
+  return { amount: String(total), unit: "minutes" };
+}
+
 export function ReminderPicker({ value, onChange }: Props) {
-  const [custom, setCustom] = useState(false);
-  const [amount, setAmount] = useState("2");
-  const [unit, setUnit] = useState<Unit>("hours");
+  const isPreset = PRESETS.some((p) => p.value === value);
+  const initial = isPreset ? { amount: "2", unit: "hours" as Unit } : splitMinutes(value);
+  const [custom, setCustom] = useState(!isPreset);
+  const [amount, setAmount] = useState(initial.amount);
+  const [unit, setUnit] = useState<Unit>(initial.unit);
 
   function handleSelect(selected: string) {
     if (selected === "custom") {
