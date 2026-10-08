@@ -63,6 +63,17 @@ services:
     command: >
       sh -c "python manage.py schedule_jobs && python manage.py rqscheduler --queue default --interval 10"
 
+  web:
+    build:
+      context: .
+      deckerfile:apps/web/deckerfile
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
