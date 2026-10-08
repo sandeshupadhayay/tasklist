@@ -58,6 +58,11 @@ services:
     command: >
       sh -c "python manage.py rqworker default"
 
+  rqscheduler:
+    <<: *api
+    command: >
+      sh -c "python manage.py schedule_jobs && python manage.py rqscheduler --queue default --interval 30"
+
 volumes:
   pgdata:
   redisdata:
